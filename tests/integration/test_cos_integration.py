@@ -43,7 +43,7 @@ async def test_setup_and_deploy(ops_test: OpsTest, series, channel):
     k8s_mdl = await get_or_add_model(ops_test, k8s_ctl, k8s_mdl_name)
     await k8s_mdl.set_config(MODEL_CONFIG)
 
-    await _deploy_cos(channel, k8s_mdl)
+    await _deploy_cos(channel, k8s_ctl, k8s_mdl)
 
     await _deploy_hardware_observer(series, channel, lxd_mdl)
 
@@ -53,14 +53,22 @@ async def test_setup_and_deploy(ops_test: OpsTest, series, channel):
     assert lxd_mdl.applications["grafana-agent"].status == "active"
 
 
-async def _deploy_cos(channel, model):
+async def _deploy_cos(channel, ctl, model):
     """Deploy COS on the existing k8s cloud."""
-    await model.deploy(
+    # Deploying via CLI because of https://github.com/juju/python-libjuju/issues/1032.
+    cmd = [
+        "juju",
+        "deploy",
         "cos-lite",
-        channel=channel,
-        trust=True,
-        overlays=[str(Path(__file__).parent.resolve() / "offers-overlay.yaml")],
-    )
+        "--channel",
+        channel,
+        "--trust",
+        "-m",
+        f"{ctl.controller_name}:{model.name}",
+        "--overlay",
+        str(Path(__file__).parent.resolve() / "offers-overlay.yaml"),
+    ]
+    subprocess.run(cmd, check=True)
 
 
 async def _deploy_hardware_observer(series, channel, model):
